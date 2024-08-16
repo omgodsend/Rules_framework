@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Sample SAM Template for rules_demo integrating Lambda, Step
+  Functions, and API Gateway
+
+Resources:
+  MyApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+
+  ReadRulesetsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: rules/readRulesets.handler
+      Runtime: nodejs20.x
+      Environment:
+        Variables:
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_USER: weblogic
+          DB_PASSWORD: password
+          DB_NAME: rules_db
+
+  EvaluateRulesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: rules/evaluateRules.handler
+      Runtime: nodejs20.x
+      Environment:
+        Variables:
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_USER: weblogic
+          DB_PASSWORD: password
+          DB_NAME: rules_db
+
+  PrepareResultsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: rules/prepareResults.handler
+      Runtime: nodejs20.x
+      Environment:
+        Variables:
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_USER: weblogic
+          DB_PASSWORD: password
+          DB_NAME: rules_db
+
+  MyStepFunction:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString: !Sub |
+        {
+          "StartAt": "ReadRulesets",
+          "States": {
+            "ReadRulesets": {
+              "Type": "Task",
+              "Resource": "${ReadRulesetsFunction.Arn}",
+              "Next": "EvaluateRules"
+            },
+            "EvaluateRules": {
+              "Type": "Task",
+              "Resource": "${EvaluateRulesFunction.Arn}",
+              "Next": "PrepareResults"
+            },
+            "PrepareResults": {
+              "Type": "Task",
+              "Resource": "${PrepareResultsFunction.Arn}",
+              "End": true
+            }
+          }
+        }
+      RoleArn: !GetAtt MyExecutionRole.Arn
+
+  MyExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaInvokePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt ReadRulesetsFunction.Arn
+                  - !GetAtt EvaluateRulesFunction.Arn
+                  - !GetAtt PrepareResultsFunction.Arn
+
+  ApiGatewayStepFunctionIntegration:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !GetAtt MyApi.RootResourceId
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:states:action/StartExecution
+        Credentials: !GetAtt MyExecutionRole.Arn
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: $input.path('$')
+        RequestTemplates:
+          application/json: !Sub |
+            {
+              "input": "$util.escapeJavaScript($input.json('$'))",
+              "stateMachineArn": "${MyStepFunction.Arn}"
+            }
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: Empty
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL for Prod stage
+    Value: !Sub https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/prod/
