@@ -34,15 +34,16 @@ async function fetchAllRules() {
         await db_1.client.connect();
         console.log('Connected successfully to the database.');
         // Query to select all rules
-        const result = await (0, db_1.query)('SELECT * FROM rules');
+        const result = await (0, db_1.query)('SELECT * FROM rules where evaluation = $1 and enabled = false', ['budget']);
         console.log('All rules:', result.rows);
         return result.rows; // This returns the rows in case you need to do something with them later
     }
     catch (error) {
         console.error('Error fetching rules:', error);
+        return [];
     }
     finally {
-        await db_1.client.end();
+        await (0, db_1.disconnectDB)();
         console.log('Disconnected from the database.');
     }
 }

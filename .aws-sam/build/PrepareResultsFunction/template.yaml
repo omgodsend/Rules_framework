@@ -1,73 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Sample SAM Template for rules_demo integrating Lambda, Step
-  Functions, and API Gateway
+Description: Direct Step Function invocation via API Gateway
 
 Resources:
   MyApi:
     Type: AWS::Serverless::Api
     Properties:
       StageName: prod
-      DefinitionBody:
-        swagger: '2.0'
-        info:
-          title: RulesDemoAPI
-        paths:
-          /start:
-            post:
-              x-amazon-apigateway-integration:
-                uri: !Sub arn:aws:apigateway:${AWS::Region}:states:action/StartExecution
-                responses: {}
-                httpMethod: POST
-                type: aws_proxy
-                requestTemplates:
-                  application/json: |
-                    {
-                      "input": "$util.escapeJavaScript($input.json('$'))",
-                      "stateMachineArn": "${MyStepFunction.Arn}"
-                    }
-
-  ReadRulesetsFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: ./
-      Handler: built/rules/readRules.handler
-      Runtime: nodejs20.x
-      Environment:
-        Variables:
-          DB_HOST: localhost
-          DB_PORT: '5432'
-          DB_USER: weblogic
-          DB_PASSWORD: password
-          DB_NAME: rules_db
-
-  EvaluateRulesFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: ./
-      Handler: built/rules/evaluateRules.handler
-      Runtime: nodejs20.x
-      Environment:
-        Variables:
-          DB_HOST: localhost
-          DB_PORT: '5432'
-          DB_USER: weblogic
-          DB_PASSWORD: password
-          DB_NAME: rules_db
-
-  PrepareResultsFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: ./
-      Handler: built/rules/prepareResults.handler
-      Runtime: nodejs20.x
-      Environment:
-        Variables:
-          DB_HOST: localhost
-          DB_PORT: '5432'
-          DB_USER: weblogic
-          DB_PASSWORD: password
-          DB_NAME: rules_db
 
   MyStepFunction:
     Type: AWS::StepFunctions::StateMachine
@@ -79,6 +18,9 @@ Resources:
             "ReadRulesets": {
               "Type": "Task",
               "Resource": "${ReadRulesetsFunction.Arn}",
+              "Paramaters": {
+                "ruleType.$": "$.ruleType"
+                },
               "Next": "EvaluateRules"
             },
             "EvaluateRules": {
@@ -94,6 +36,34 @@ Resources:
           }
         }
       RoleArn: !GetAtt MyExecutionRole.Arn
+
+  ReadRulesetsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: built/rules/readRules.handler
+      Runtime: nodejs20.x
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /readrules
+            Method: post
+            RestApiId: !Ref MyApi
+
+  EvaluateRulesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: built/rules/evaluateRules.handler
+      Runtime: nodejs20.x
+
+  PrepareResultsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: built/rules/prepareResults.handler
+      Runtime: nodejs20.x
 
   MyExecutionRole:
     Type: AWS::IAM::Role
@@ -122,4 +92,4 @@ Resources:
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL for Prod stage
-    Value: !Sub https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/prod/start
+    Value: !Sub https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/prod

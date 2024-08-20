@@ -1,0 +1,9 @@
+POST http://127.0.0.1:3000/readrules
+Content-Type: application/json
+
+{
+    "data": {
+        "budget":900,
+        "nights":4
+    }
+}

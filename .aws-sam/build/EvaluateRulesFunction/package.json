@@ -7,6 +7,7 @@
     "typescript": "^5.5.4"
   },
   "dependencies": {
+    "aws-sdk": "^2.1678.0",
     "dotenv": "^16.4.5",
     "pg": "^8.12.0"
   }

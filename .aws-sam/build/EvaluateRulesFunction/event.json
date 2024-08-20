@@ -1,3 +1,4 @@
 {
-    "ruleType": "budget"
+    "body": "{\"data\": {\"budget\":900, \"nights\":4}}"
+
 }

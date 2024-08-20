@@ -23,28 +23,25 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-// Import necessary modules
+// Import dotenv for environment variable management
 const dotenv = __importStar(require("dotenv"));
-dotenv.config(); // Make sure your .env file is configured correctly with your database credentials
-// Import your database client and query function
+dotenv.config({ path: './.env' });
+// Import the database client and query function from your 'db' module
 const db_1 = require("./db");
-// Function to fetch and log all rules from the database
-async function fetchAllRules() {
+async function testDatabaseConnection() {
     try {
         await db_1.client.connect();
         console.log('Connected successfully to the database.');
-        // Query to select all rules
-        const result = await (0, db_1.query)('SELECT * FROM rules');
-        console.log('All rules:', result.rows);
-        return result.rows; // This returns the rows in case you need to do something with them later
+        const res = await db_1.client.query('SELECT NOW() as now');
+        console.log('Current time from PostgreSQL:', res.rows[0].now);
     }
-    catch (error) {
-        console.error('Error fetching rules:', error);
+    catch (err) {
+        console.error('Failed to connect to the database:', err);
     }
     finally {
         await db_1.client.end();
-        console.log('Disconnected from the database.');
     }
 }
-// Execute the function
-fetchAllRules();
+if (require.main === module) {
+    testDatabaseConnection().then(() => db_1.client.end());
+}
