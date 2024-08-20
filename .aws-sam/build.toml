@@ -7,6 +7,6 @@ architecture = "x86_64"
 handler = "built/rules/readRulesets.handler"
 manifest_hash = "0e71bc6b316ad1b19d34feeaf597f62a"
 packagetype = "Zip"
-functions = ["ReadRulesetsFunction", "EvaluateRulesFunction", "PrepareResultsFunction"]
+functions = ["ReadRulesetsFunction", "EvaluateRulesFunction", "LambdaQueryTest", "PrepareResultsFunction"]
 
 [layer_build_definitions]

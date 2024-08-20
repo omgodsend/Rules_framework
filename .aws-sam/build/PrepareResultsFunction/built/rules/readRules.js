@@ -31,10 +31,12 @@ const handler = async (event) => {
             body: JSON.stringify({ message: 'Bad request: Invalid JSON in the request body' })
         };
     }
+    await (0, db_1.connectDB)(); // Ensure the database is connected
     // Assuming 'eventData' contains the keys matching the 'evaluation' column in your DB.
     const results = await Promise.all(Object.keys(eventData).map(async (key) => {
         return await (0, db_1.query)('SELECT * FROM rules WHERE evaluation = $1 AND enabled = true', [key]);
     }));
+    await (0, db_1.disconnectDB)(); // Disconnect after the queries are done
     // Explicitly type the accumulator as Rule[]
     const rules = results.reduce((acc, result) => {
         if (result && result.rows) {

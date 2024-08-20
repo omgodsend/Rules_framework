@@ -1,4 +1,3 @@
-"use strict";
 // import { client } from '../utils/db';
 // import { Rule, EvaluationResult } from '../utils/types';
 // export async function evaluateBudgetRule(data: any): Promise<EvaluationResult[]> {

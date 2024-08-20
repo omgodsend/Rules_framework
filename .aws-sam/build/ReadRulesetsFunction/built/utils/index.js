@@ -1,4 +1,3 @@
-"use strict";
 // import { Context } from 'aws-lambda';
 // import { evaluateBudgetRule } from './rules/budgetRule';
 // import 'dotenv/config';

@@ -19,7 +19,8 @@
 
 //     return result;
 // };
-import { query } from '../utils/db';
+
+import { connectDB, query, disconnectDB } from '../utils/db';
 import { Rule } from '../utils/types';
 
 export const handler = async (event: any) => {
@@ -35,10 +36,14 @@ export const handler = async (event: any) => {
         };
     }
 
+    await connectDB();  // Ensure the database is connected
+
     // Assuming 'eventData' contains the keys matching the 'evaluation' column in your DB.
     const results = await Promise.all(Object.keys(eventData).map(async (key) => {
         return await query('SELECT * FROM rules WHERE evaluation = $1 AND enabled = true', [key]);
     }));
+
+    await disconnectDB();  // Disconnect after the queries are done
 
     // Explicitly type the accumulator as Rule[]
     const rules: Rule[] = results.reduce((acc: Rule[], result) => {
@@ -57,8 +62,8 @@ export const handler = async (event: any) => {
     }
 
     console.log("Rules found:", rules);
-    return {
-        statusCode: 200,
-        body: JSON.stringify(rules)
-    };
+return {
+statusCode: 200,
+body: JSON.stringify(rules)
+};
 };

@@ -1,4 +1,3 @@
-"use strict";
 // import { StepFunctions } from 'aws-sdk';
 // const stepFunctions = new StepFunctions();
 // export const handler = async (event: any) => {

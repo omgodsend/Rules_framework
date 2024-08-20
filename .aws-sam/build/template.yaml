@@ -46,6 +46,21 @@ Resources:
       Runtime: nodejs20.x
     Metadata:
       SamResourceId: EvaluateRulesFunction
+  LambdaQueryTest:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: LambdaQueryTest
+      Handler: built/testing/lamdaQueryTest.handler
+      Runtime: nodejs20.x
+      Environment:
+        Variables:
+          DB_HOST: 172.17.0.1
+          DB_USER: weblogic
+          DB_PASSWORD: password
+          DB_NAME: rules_db
+          DB_PORT: '5432'
+    Metadata:
+      SamResourceId: LambdaQueryTest
   PrepareResultsFunction:
     Type: AWS::Serverless::Function
     Properties:

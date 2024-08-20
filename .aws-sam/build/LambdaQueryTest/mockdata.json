@@ -1,0 +1,22 @@
+{
+    "rules": [
+      {
+        "id": 1,
+        "evaluation": "budget",
+        "enabled": true,
+        "operator": "<=",
+        "comparator_value": 1000
+      },
+      {
+        "id": 2,
+        "evaluation": "nights",
+        "enabled": true,
+        "operator": "=",
+        "comparator_value": 5
+      }
+    ],
+    "data": {
+      "budget": 900,
+      "nights": 5
+    }
+  }

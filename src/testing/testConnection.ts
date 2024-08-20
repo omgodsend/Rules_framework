@@ -1,9 +1,7 @@
-// Import dotenv for environment variable management
 import * as dotenv from 'dotenv';
 dotenv.config({ path: './.env' });
 
-// Import the database client and query function from your 'db' module
-import { client, query } from './db';
+import { client } from '../utils/db';
 
 async function testDatabaseConnection() {
     try {
