@@ -1,0 +1,14 @@
+{
+    "evaluationResults": [
+        {
+            "ruleId":1,
+            "evaluation": "budget",
+            "passed": true
+        },
+        {
+            "ruleId":2,
+            "evaluation": "nights",
+            "passed": false
+        }
+    ]
+}

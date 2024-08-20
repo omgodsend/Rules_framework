@@ -1,46 +1,119 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: 'rules_demo
-
-  Sample SAM Template for rules_demo
-
-  '
-Globals:
-  Function:
-    Timeout: 3
-    LoggingConfig:
-      LogFormat: JSON
+Description: Sample SAM Template for rules_demo integrating Lambda, Step Functions,
+  and API Gateway
 Resources:
-  HelloWorldFunction:
+  MyApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      DefinitionBody:
+        swagger: '2.0'
+        info:
+          title: RulesDemoAPI
+        paths:
+          /start:
+            post:
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:states:action/StartExecution
+                responses: {}
+                httpMethod: POST
+                type: aws_proxy
+                requestTemplates:
+                  application/json: "{\n  \"input\": \"$util.escapeJavaScript($input.json('$'))\"\
+                    ,\n  \"stateMachineArn\": \"${MyStepFunction.Arn}\"\n}\n"
+  ReadRulesetsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: HelloWorldFunction
-      Handler: app.lambdaHandler
+      CodeUri: ReadRulesetsFunction
+      Handler: built/rules/readRules.handler
       Runtime: nodejs20.x
-      Architectures:
-      - x86_64
-      Events:
-        HelloWorld:
-          Type: Api
-          Properties:
-            Path: /hello
-            Method: get
+      Environment:
+        Variables:
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_USER: weblogic
+          DB_PASSWORD: password
+          DB_NAME: rules_db
     Metadata:
-      SamResourceId: HelloWorldFunction
+      SamResourceId: ReadRulesetsFunction
+  EvaluateRulesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: EvaluateRulesFunction
+      Handler: built/rules/evaluateRules.handler
+      Runtime: nodejs20.x
+      Environment:
+        Variables:
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_USER: weblogic
+          DB_PASSWORD: password
+          DB_NAME: rules_db
+    Metadata:
+      SamResourceId: EvaluateRulesFunction
+  PrepareResultsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: PrepareResultsFunction
+      Handler: built/rules/prepareResults.handler
+      Runtime: nodejs20.x
+      Environment:
+        Variables:
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_USER: weblogic
+          DB_PASSWORD: password
+          DB_NAME: rules_db
+    Metadata:
+      SamResourceId: PrepareResultsFunction
+  MyStepFunction:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString:
+        Fn::Sub: "{\n  \"StartAt\": \"ReadRulesets\",\n  \"States\": {\n    \"ReadRulesets\"\
+          : {\n      \"Type\": \"Task\",\n      \"Resource\": \"${ReadRulesetsFunction.Arn}\"\
+          ,\n      \"Next\": \"EvaluateRules\"\n    },\n    \"EvaluateRules\": {\n\
+          \      \"Type\": \"Task\",\n      \"Resource\": \"${EvaluateRulesFunction.Arn}\"\
+          ,\n      \"Next\": \"PrepareResults\"\n    },\n    \"PrepareResults\": {\n\
+          \      \"Type\": \"Task\",\n      \"Resource\": \"${PrepareResultsFunction.Arn}\"\
+          ,\n      \"End\": true\n    }\n  }\n}\n"
+      RoleArn:
+        Fn::GetAtt:
+        - MyExecutionRole
+        - Arn
+  MyExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - states.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: LambdaInvokePolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - lambda:InvokeFunction
+            Resource:
+            - Fn::GetAtt:
+              - ReadRulesetsFunction
+              - Arn
+            - Fn::GetAtt:
+              - EvaluateRulesFunction
+              - Arn
+            - Fn::GetAtt:
+              - PrepareResultsFunction
+              - Arn
 Outputs:
-  HelloWorldApi:
-    Description: API Gateway endpoint URL for Prod stage for Hello World function
+  ApiEndpoint:
+    Description: API Gateway endpoint URL for Prod stage
     Value:
-      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/
-  HelloWorldFunction:
-    Description: Hello World Lambda Function ARN
-    Value:
-      Fn::GetAtt:
-      - HelloWorldFunction
-      - Arn
-  HelloWorldFunctionIamRole:
-    Description: Implicit IAM Role created for Hello World function
-    Value:
-      Fn::GetAtt:
-      - HelloWorldFunctionRole
-      - Arn
+      Fn::Sub: https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/prod/start
