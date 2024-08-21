@@ -18,9 +18,9 @@ Resources:
             "ReadRulesets": {
               "Type": "Task",
               "Resource": "${ReadRulesetsFunction.Arn}",
-              "Paramaters": {
+              "Parameters": {
                 "ruleType.$": "$.ruleType"
-                },
+              },
               "Next": "EvaluateRules"
             },
             "EvaluateRules": {
@@ -43,13 +43,20 @@ Resources:
       CodeUri: ./
       Handler: built/rules/readRules.handler
       Runtime: nodejs20.x
+      Environment:
+        Variables:
+          DB_HOST: 172.17.0.1
+          DB_USER: weblogic
+          DB_PASSWORD: password
+          DB_NAME: rules_db
+          DB_PORT: '5432'
       Events:
-        ApiEvent:
-          Type: Api
-          Properties:
-            Path: /readrules
-            Method: post
-            RestApiId: !Ref MyApi
+              ApiEvent:
+                Type: Api
+                Properties:
+                  Path: /readrules
+                  Method: post
+                  RestApiId: !Ref MyApi
 
   EvaluateRulesFunction:
     Type: AWS::Serverless::Function
@@ -57,7 +64,7 @@ Resources:
       CodeUri: ./
       Handler: built/rules/evaluateRules.handler
       Runtime: nodejs20.x
-  
+
   LambdaQueryTest:
     Type: AWS::Serverless::Function
     Properties:
@@ -66,12 +73,11 @@ Resources:
       Runtime: nodejs20.x
       Environment:
         Variables:
-          DB_HOST: '172.17.0.1'
-          DB_USER: 'weblogic'
-          DB_PASSWORD: 'password'
-          DB_NAME: 'rules_db'
+          DB_HOST: 172.17.0.1
+          DB_USER: weblogic
+          DB_PASSWORD: password
+          DB_NAME: rules_db
           DB_PORT: '5432'
-
 
   PrepareResultsFunction:
     Type: AWS::Serverless::Function
@@ -79,6 +85,29 @@ Resources:
       CodeUri: ./
       Handler: built/rules/prepareResults.handler
       Runtime: nodejs20.x
+
+  ApiGatewayStepFunctionIntegration:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApi
+      ResourceId: !GetAtt 'MyApi.RootResourceId'
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:states:action/StartExecution'
+        Credentials: !GetAtt MyExecutionRole.Arn
+        RequestTemplates:
+          application/json: |
+            {
+              "input": "$util.escapeJavaScript($input.json('$'))",
+              "stateMachineArn": "${MyStepFunction.Arn}"
+            }
+        IntegrationResponses:
+          - StatusCode: 200
+      MethodResponses:
+        - StatusCode: 200
 
   MyExecutionRole:
     Type: AWS::IAM::Role
@@ -107,4 +136,4 @@ Resources:
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL for Prod stage
-    Value: !Sub https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+    Value: !Sub 'https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/prod/start'

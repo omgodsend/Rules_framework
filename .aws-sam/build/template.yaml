@@ -12,8 +12,8 @@ Resources:
       DefinitionString:
         Fn::Sub: "{\n  \"StartAt\": \"ReadRulesets\",\n  \"States\": {\n    \"ReadRulesets\"\
           : {\n      \"Type\": \"Task\",\n      \"Resource\": \"${ReadRulesetsFunction.Arn}\"\
-          ,\n      \"Paramaters\": {\n        \"ruleType.$\": \"$.ruleType\"\n   \
-          \     },\n      \"Next\": \"EvaluateRules\"\n    },\n    \"EvaluateRules\"\
+          ,\n      \"Parameters\": {\n        \"ruleType.$\": \"$.ruleType\"\n   \
+          \   },\n      \"Next\": \"EvaluateRules\"\n    },\n    \"EvaluateRules\"\
           : {\n      \"Type\": \"Task\",\n      \"Resource\": \"${EvaluateRulesFunction.Arn}\"\
           ,\n      \"Next\": \"PrepareResults\"\n    },\n    \"PrepareResults\": {\n\
           \      \"Type\": \"Task\",\n      \"Resource\": \"${PrepareResultsFunction.Arn}\"\
@@ -28,6 +28,13 @@ Resources:
       CodeUri: ReadRulesetsFunction
       Handler: built/rules/readRules.handler
       Runtime: nodejs20.x
+      Environment:
+        Variables:
+          DB_HOST: 172.17.0.1
+          DB_USER: weblogic
+          DB_PASSWORD: password
+          DB_NAME: rules_db
+          DB_PORT: '5432'
       Events:
         ApiEvent:
           Type: Api
@@ -69,6 +76,33 @@ Resources:
       Runtime: nodejs20.x
     Metadata:
       SamResourceId: PrepareResultsFunction
+  ApiGatewayStepFunctionIntegration:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId:
+        Ref: MyApi
+      ResourceId:
+        Fn::GetAtt:
+        - MyApi
+        - RootResourceId
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:states:action/StartExecution
+        Credentials:
+          Fn::GetAtt:
+          - MyExecutionRole
+          - Arn
+        RequestTemplates:
+          application/json: "{\n  \"input\": \"$util.escapeJavaScript($input.json('$'))\"\
+            ,\n  \"stateMachineArn\": \"${MyStepFunction.Arn}\"\n}\n"
+        IntegrationResponses:
+        - StatusCode: 200
+      MethodResponses:
+      - StatusCode: 200
   MyExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -102,4 +136,4 @@ Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL for Prod stage
     Value:
-      Fn::Sub: https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+      Fn::Sub: https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/prod/start

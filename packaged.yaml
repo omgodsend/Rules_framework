@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Direct Step Function invocation via API Gateway
+Resources:
+  MyApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+    Metadata:
+      SamResourceId: MyApi
+  MyStepFunction:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString:
+        Fn::Sub: "{\n  \"StartAt\": \"ReadRulesets\",\n  \"States\": {\n    \"ReadRulesets\"\
+          : {\n      \"Type\": \"Task\",\n      \"Resource\": \"${ReadRulesetsFunction.Arn}\"\
+          ,\n      \"Parameters\": {  # Corrected typo from \"Paramaters\"\n     \
+          \   \"ruleType.$\": \"$.ruleType\"\n      },\n      \"Next\": \"EvaluateRules\"\
+          \n    },\n    \"EvaluateRules\": {\n      \"Type\": \"Task\",\n      \"\
+          Resource\": \"${EvaluateRulesFunction.Arn}\",\n      \"Next\": \"PrepareResults\"\
+          \n    },\n    \"PrepareResults\": {\n      \"Type\": \"Task\",\n      \"\
+          Resource\": \"${PrepareResultsFunction.Arn}\",\n      \"End\": true\n  \
+          \  }\n  }\n}\n"
+      RoleArn:
+        Fn::GetAtt:
+        - MyExecutionRole
+        - Arn
+    Metadata:
+      SamResourceId: MyStepFunction
+  ReadRulesetsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-e9yeemx4miqt/80c466b777f0ff37df51defcb088c2c7
+      Handler: built/rules/readRules.handler
+      Runtime: nodejs20.x
+      Environment:
+        Variables:
+          DB_HOST: 172.17.0.1
+          DB_USER: weblogic
+          DB_PASSWORD: password
+          DB_NAME: rules_db
+          DB_PORT: '5432'
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /readrules
+            Method: post
+            RestApiId:
+              Ref: MyApi
+    Metadata:
+      SamResourceId: ReadRulesetsFunction
+  EvaluateRulesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-e9yeemx4miqt/80c466b777f0ff37df51defcb088c2c7
+      Handler: built/rules/evaluateRules.handler
+      Runtime: nodejs20.x
+    Metadata:
+      SamResourceId: EvaluateRulesFunction
+  LambdaQueryTest:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-e9yeemx4miqt/80c466b777f0ff37df51defcb088c2c7
+      Handler: built/testing/lamdaQueryTest.handler
+      Runtime: nodejs20.x
+      Environment:
+        Variables:
+          DB_HOST: 172.17.0.1
+          DB_USER: weblogic
+          DB_PASSWORD: password
+          DB_NAME: rules_db
+          DB_PORT: '5432'
+    Metadata:
+      SamResourceId: LambdaQueryTest
+  PrepareResultsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-e9yeemx4miqt/80c466b777f0ff37df51defcb088c2c7
+      Handler: built/rules/prepareResults.handler
+      Runtime: nodejs20.x
+    Metadata:
+      SamResourceId: PrepareResultsFunction
+  ApiGatewayStepFunctionIntegration:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId:
+        Ref: MyApi
+      ResourceId:
+        Fn::GetAtt:
+        - MyApi
+        - RootResourceId
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:states:action/StartExecution
+        Credentials:
+          Fn::GetAtt:
+          - MyExecutionRole
+          - Arn
+        RequestTemplates:
+          application/json: "{\n  \"input\": \"$util.escapeJavaScript($input.json('$'))\"\
+            ,\n  \"stateMachineArn\": \"${MyStepFunction.Arn}\"\n}\n"
+        IntegrationResponses:
+        - StatusCode: 200
+      MethodResponses:
+      - StatusCode: 200
+    Metadata:
+      SamResourceId: ApiGatewayStepFunctionIntegration
+  MyExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - states.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: LambdaInvokePolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - lambda:InvokeFunction
+            Resource:
+            - Fn::GetAtt:
+              - ReadRulesetsFunction
+              - Arn
+            - Fn::GetAtt:
+              - EvaluateRulesFunction
+              - Arn
+            - Fn::GetAtt:
+              - PrepareResultsFunction
+              - Arn
+    Metadata:
+      SamResourceId: MyExecutionRole
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL for Prod stage
+    Value:
+      Fn::Sub: https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/prod/start

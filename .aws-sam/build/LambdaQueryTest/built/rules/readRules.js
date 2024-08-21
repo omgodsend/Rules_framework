@@ -1,22 +1,6 @@
 "use strict";
-// import { query } from '../utils/db';
-// import { Rule } from '../utils/types';
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handler = void 0;
-// export const handler = async (event: any) => {
-//     const body = JSON.parse(event.body);
-//     const ruleType = event.ruleType; 
-//     console.log('Rule Type:', ruleType);
-//     const result = await query('SELECT * FROM rules WHERE rule_type = $1 AND enabled = true', [ruleType]);
-//     if (result && result.rows) {
-//         const rules: Rule[] = result.rows;
-//         console.log('Rules:', JSON.stringify(rules))
-//         return rules;
-//     } else {
-//         console.error('No rules found/undefined query');
-//     }
-//     return result;
-// };
 const db_1 = require("../utils/db");
 const handler = async (event) => {
     console.log("Received event:", event);
@@ -31,30 +15,75 @@ const handler = async (event) => {
             body: JSON.stringify({ message: 'Bad request: Invalid JSON in the request body' })
         };
     }
-    await (0, db_1.connectDB)(); // Ensure the database is connected
-    // Assuming 'eventData' contains the keys matching the 'evaluation' column in your DB.
-    const results = await Promise.all(Object.keys(eventData).map(async (key) => {
-        return await (0, db_1.query)('SELECT * FROM rules WHERE evaluation = $1 AND enabled = true', [key]);
-    }));
-    await (0, db_1.disconnectDB)(); // Disconnect after the queries are done
-    // Explicitly type the accumulator as Rule[]
-    const rules = results.reduce((acc, result) => {
-        if (result && result.rows) {
-            acc.push(...result.rows);
-        }
-        return acc;
-    }, []);
+    await (0, db_1.connectDB)();
+    const rules = [];
+    for (const key in eventData) {
+        const result = await (0, db_1.query)('SELECT * FROM rules WHERE evaluation = $1 AND enabled = true', [key]);
+        result.rows.forEach(row => {
+            rules.push({
+                id: row.id,
+                evaluation: row.evaluation,
+                operator: row.operator,
+                comparator_value: row.comparator_value,
+                enabled: row.enabled
+            });
+        });
+    }
+    await (0, db_1.disconnectDB)();
     if (rules.length === 0) {
-        console.error('No rules found or undefined query results');
+        console.error('No enabled rules found for the given types');
         return {
             statusCode: 404,
             body: JSON.stringify({ message: 'No enabled rules found for given types' })
         };
     }
-    console.log("Rules found:", rules);
+    console.log("Rules and data:", { rules, data: eventData });
     return {
         statusCode: 200,
-        body: JSON.stringify(rules)
+        body: JSON.stringify({
+            rules,
+            data: eventData // Passing user data along with the rules
+        })
     };
 };
 exports.handler = handler;
+// import { connectDB, query, disconnectDB } from '../utils/db';
+// import { Rule } from '../utils/types';
+// export const handler = async (event: any) => {
+//     console.log("Received event:", event);
+//     let eventData;
+//     try {
+//         eventData = JSON.parse(event.body).data;
+//     } catch (error) {
+//         console.error('Error parsing event body:', error);
+//         return {
+//             statusCode: 400,
+//             body: JSON.stringify({ message: 'Bad request: Invalid JSON in the request body' })
+//         };
+//     }
+//     await connectDB();  // Ensure the database is connected
+//     // Assuming 'eventData' contains the keys matching the 'evaluation' column in your DB.
+//     const results = await Promise.all(Object.keys(eventData).map(async (key) => {
+//         return await query('SELECT * FROM rules WHERE evaluation = $1 AND enabled = true', [key]);
+//     }));
+//     await disconnectDB();  // Disconnect after the queries are done
+//     // Explicitly type the accumulator as Rule[]
+//     const rules: Rule[] = results.reduce((acc: Rule[], result) => {
+//         if (result && result.rows) {
+//             acc.push(...result.rows);
+//         }
+//         return acc;
+//     }, []);
+//     if (rules.length === 0) {
+//         console.error('No rules found or undefined query results');
+//         return {
+//             statusCode: 404,
+//             body: JSON.stringify({ message: 'No enabled rules found for given types' })
+//         };
+//     }
+//     console.log("Rules found:", rules);
+// return {
+// statusCode: 200,
+// body: JSON.stringify(rules)
+// };
+// };

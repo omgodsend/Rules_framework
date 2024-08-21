@@ -4,12 +4,11 @@ import { Rule } from '../utils/types';
 export const handler = async (event: any) => {
     console.log("Received event:", event);
 
-    await connectDB(); // Ensure the database is connected before running the query
+    await connectDB(); 
 
     try {
         const result = await query('SELECT * FROM rules', []);
-        await disconnectDB(); // Disconnect from the database after the query is executed
-
+        await disconnectDB(); 
         if (result && result.rows) {
             console.log("Rules found:", result.rows);
             return {
@@ -25,7 +24,7 @@ export const handler = async (event: any) => {
         }
     } catch (error) {
         console.error('Error running query:', error);
-        await disconnectDB(); // Ensure to disconnect in case of error
+        await disconnectDB();
         return {
             statusCode: 500,
             body: JSON.stringify({ message: 'Internal server error' })
